@@ -1,1 +1,4 @@
 benchee.json
+dist/bencher-linux
+dist/bencher-mac
+dist/bencher-win.exe
