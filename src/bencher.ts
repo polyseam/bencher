@@ -25,7 +25,7 @@ export default async function bencher() {
   const options = bencherCommand.options;
   if (!options.ref) {
     console.error(
-      'you must provide a "ref" which represents a version of the benchee'
+      'you must provide a "ref" which represents a version of the benchee',
     );
     Deno.exit(1);
   }
@@ -57,7 +57,7 @@ export default async function bencher() {
 
   try {
     existingRecordText = await Deno.readTextFile(
-      path.join(cwd, "benchee.json")
+      path.join(cwd, "benchee.json"),
     );
   } catch (_e) {
     // benchee.json doesn't exist, we'll just create it
@@ -82,7 +82,7 @@ export default async function bencher() {
 
   Deno.writeTextFile(
     path.join(cwd, "benchee.json"),
-    JSON.stringify(newRecord, null, 2)
+    JSON.stringify(newRecord, null, 2),
   );
 
   console.log("\n--- output from benchee ---\n");
