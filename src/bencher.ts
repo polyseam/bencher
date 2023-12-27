@@ -4,6 +4,7 @@ type BencheeRecordEntry = {
   duration: number;
   ts: string;
   bencheeCommand: string;
+  cwd: string;
 };
 
 type BencheeRecordEntries = Array<BencheeRecordEntry>;
@@ -14,7 +15,7 @@ type BencheeRecord = {
 
 export default async function bencher() {
   const bencherCommand = await new Command()
-    .version("0.0.1")
+    .version("0.1.0")
     .name("bencher")
     .option("-r,--ref <ref:string>", "git ref of benchee", {
       required: true,
@@ -52,6 +53,7 @@ export default async function bencher() {
     duration: entries[0].duration,
     ts: new Date().toISOString(),
     bencheeCommand: `${bencheePath} ${bencheeArgs.join(" ")}`,
+    cwd,
   };
 
   const outputFilePath = options.output ?? path.join(cwd, "benchee.json");
