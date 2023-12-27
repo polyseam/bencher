@@ -19,6 +19,7 @@ export default async function bencher() {
     .option("-r,--ref <ref:string>", "git ref of benchee", {
       required: true,
     })
+    .option("-o,--output <output:string>", "output file")
     .description("benchmark a command")
     .parse(Deno.args);
 
@@ -53,11 +54,13 @@ export default async function bencher() {
     bencheeCommand: `${bencheePath} ${bencheeArgs.join(" ")}`,
   };
 
+  const outputFilePath = options.output ?? path.join(cwd, "benchee.json");
+
   let existingRecordText = "{}";
 
   try {
     existingRecordText = await Deno.readTextFile(
-      path.join(cwd, "benchee.json"),
+      outputFilePath,
     );
   } catch (_e) {
     // benchee.json doesn't exist, we'll just create it
@@ -81,7 +84,7 @@ export default async function bencher() {
   };
 
   Deno.writeTextFile(
-    path.join(cwd, "benchee.json"),
+    outputFilePath,
     JSON.stringify(newRecord, null, 2),
   );
 
