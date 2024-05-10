@@ -1,4 +1,6 @@
-import { Command, cyan, path } from "deps";
+import { cyan } from "@std/fmt/colors";
+import { join as joinPath } from "@std/path";
+import { Command } from "@cliffy/command";
 
 type BencheeRecordEntry = {
   duration: number;
@@ -10,8 +12,41 @@ type BencheeRecordEntry = {
 type BencheeRecordEntries = Array<BencheeRecordEntry>;
 
 type BencheeRecord = {
-  [ref: string]: BencheeRecordEntries;
+  entries: BencheeRecordEntries;
+  summary: {
+    mean: number;
+    median: number;
+    min: number;
+    max: number;
+    stddev: number;
+  };
 };
+
+type BencheeRecords = {
+  [ref: string]: BencheeRecord;
+};
+
+function getSummary(entries: BencheeRecordEntries) {
+  const durations = entries.map((entry) => entry.duration);
+  const mean = durations.reduce((acc, curr) => acc + curr, 0) /
+    durations.length;
+  const sorted = durations.sort((a, b) => a - b);
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const stddev = Math.sqrt(
+    durations.reduce((acc, curr) => acc + (curr - mean) ** 2, 0) /
+      durations.length,
+  );
+
+  return {
+    mean,
+    median,
+    min,
+    max,
+    stddev,
+  };
+}
 
 export default async function bencher() {
   const bencherCommand = await new Command()
@@ -21,6 +56,7 @@ export default async function bencher() {
       required: true,
     })
     .option("-o,--output <output:string>", "output file")
+    .option("-q,--quiet", "suppress output")
     .description("benchmark a command")
     .parse(Deno.args);
 
@@ -32,14 +68,34 @@ export default async function bencher() {
     Deno.exit(1);
   }
 
+  if (options.quiet) {
+    console.log = () => {};
+  }
+
   const cwd = Deno.cwd();
 
-  const [bencheePath, ...bencheeArgs] = bencherCommand.literal;
+  const [program, ...bencheeArgs] = bencherCommand.literal;
 
-  console.log("benchmarking", cyan(`${bencheePath} ${bencheeArgs.join(" ")}`));
+  // if the arg has a space, wrap it in quotes
+  const bencheeCommand = `${program} ${
+    bencheeArgs
+      .map((arg) => {
+        if (arg.includes(" ")) {
+          return `"${arg}"`;
+        }
+        return arg;
+      })
+      .join(" ")
+  }`;
+
+  console.log(
+    "benchmarking",
+    cyan(bencheeCommand),
+  );
+
   performance.mark("benchee-start");
 
-  const command = new Deno.Command(bencheePath, {
+  const command = new Deno.Command(program, {
     args: bencheeArgs,
   });
 
@@ -52,43 +108,73 @@ export default async function bencher() {
   const bencheeEntry: BencheeRecordEntry = {
     duration: entries[0].duration,
     ts: new Date().toISOString(),
-    bencheeCommand: `${bencheePath} ${bencheeArgs.join(" ")}`,
+    bencheeCommand,
     cwd,
   };
 
-  const outputFilePath = options.output ?? path.join(cwd, "benchee.json");
+  const outputFilePath = options.output ?? joinPath(cwd, "benchee.json");
 
   let existingRecordText = "{}";
 
   try {
-    existingRecordText = await Deno.readTextFile(
-      outputFilePath,
-    );
+    existingRecordText = await Deno.readTextFile(outputFilePath);
   } catch (_e) {
     // benchee.json doesn't exist, we'll just create it
   }
 
-  let existingRecord: BencheeRecord;
+  let existingRecords: BencheeRecords;
 
   try {
-    existingRecord = JSON.parse(existingRecordText) as BencheeRecord;
+    existingRecords = JSON.parse(existingRecordText) as BencheeRecords;
   } catch (_e) {
     // benchee.json failed to parse, we'll just overwrite it
-    existingRecord = {};
+    existingRecords = {};
   }
 
-  const existingEntries = existingRecord?.[options.ref] ?? [];
-  const newEntries = [...existingEntries, bencheeEntry];
+  let existingRecord = existingRecords?.[options.ref];
 
-  const newRecord: BencheeRecord = {
-    ...existingRecord,
-    [options.ref]: newEntries,
+  if (existingRecord) {
+    // malformed data: reset
+    if (!existingRecord?.entries) {
+      existingRecord.entries = [];
+    }
+
+    // malformed data: reset
+    if (!existingRecord?.summary) {
+      existingRecord.summary = {
+        mean: -1,
+        median: -1,
+        min: -1,
+        max: -1,
+        stddev: -1,
+      };
+    }
+  } else {
+    existingRecord = {
+      entries: [],
+      summary: {
+        mean: -1,
+        median: -1,
+        min: -1,
+        max: -1,
+        stddev: -1,
+      },
+    };
+  }
+
+  existingRecord.entries.push(bencheeEntry);
+
+  const summary = getSummary(existingRecord.entries);
+
+  const newRecords: BencheeRecords = {
+    ...existingRecords,
+    [options.ref]: {
+      entries: existingRecord.entries,
+      summary,
+    },
   };
 
-  Deno.writeTextFile(
-    outputFilePath,
-    JSON.stringify(newRecord, null, 2),
-  );
+  Deno.writeTextFile(outputFilePath, JSON.stringify(newRecords, null, 2));
 
   console.log("\n--- output from benchee ---\n");
 
@@ -98,4 +184,7 @@ export default async function bencher() {
   }
 
   console.log(new TextDecoder().decode(output.stdout));
+
+  console.log("\n--- end output from benchee ---\n");
+  console.log("bench complete!");
 }

@@ -1,7 +1,7 @@
 {
-  "version": "0.1.0",
-  "name": "bencher",
-  "deno_version": "1.39.0",
+  "version": "0.2.0",
+  "name": "@polyseam/bencher",
+  "deno_version": "1.43.2",
   "tasks": {
     "start": "deno run main.ts",
     "compile-win": "deno compile --allow-all --target x86_64-pc-windows-msvc --output dist/bencher-win.exe main.ts",
@@ -13,6 +13,9 @@
     "build-linux": "deno lint && deno fmt && deno task clean-dist && deno task compile-linux"
   },
   "imports": {
+    "@cliffy/command": "jsr:@cliffy/command@^1.0.0-rc.4",
+    "@std/fmt": "jsr:@std/fmt@^0.224.0",
+    "@std/path": "jsr:@std/path@^0.224.0",
     "deps": "./src/deps.ts"
   }
 }
